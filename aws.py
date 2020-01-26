@@ -14,8 +14,20 @@ def filter_instances(project):
 	return instances
 
 @click.group()
+def cli():
+	"""Custom AWS CLI library"""
+
+@cli.group('instances')
 def instances():
 	"""Commands for instances"""
+
+@cli.group('volumes')
+def volumes():
+	"""Commands for volumes"""
+
+@cli.group('snapshots')
+def snapshots():
+	"""Commands for snapshots"""
 
 @instances.command('list')
 @click.option('--project', default=None, help="Only instances for project (tag Project:<name>)")
@@ -55,8 +67,49 @@ def start_instances(project):
 		i.start()
 	return
 
+@instances.command('snapshot', help="Create snapshots of all volumes")
+@click.option@click.option('--project', default=None, help="Only volumes for project (tag Project:<name>)")
+def create_snapshots(project):
+	"Create snapshots for EC2 instances"
+	instances = filter_instances(project)
+	for i in instances:
+		for v in i.volumes.all():
+			print("Creating snapshot of [0]".format(v.id))
+			v.create_snapshot(Description="Created from CLI")
+	return
+
+@volumes.command('list')
+@click.option('--project', default=None, help="Only volumes for project (tag Project:<name>)")
+def list_volumes(project):
+	"List EC2 volumes"
+	instances = filter_instances(project)
+	for i in instances:
+		for v in i.volumes.all():
+			print(', '.join((
+				"\n" +
+				"Vid: " + v.id + "\n" +
+				"Iid: " + i.id + "\n" +
+				"size: " + str(v.size) + "GiB",
+				"\n")))
+	return
+
+@snapshots.command('list')
+@click.option('--project', default=None, help="Only snapshots for prohect (tag Project:<name>)")
+def list_snapshots(project):
+	"List EC2 snapshots"
+	instances = filter_instances(project)
+	for i in instances:
+		for v in i.volumes.all():
+			for s in v.snapshots.all():
+				print(', '.join((
+					"\n" +
+					"Sid: " + s.id + "\n" +
+					"Vid: " + v.id + "\n" +
+					"Iid: " + i.id + "\n" +
+					"state: " + s.state + "\n" +
+					"created: " + s.start_time.strftime("%c"),
+					"\n")))
+	return
+
 if __name__ == '__main__':
-	instances()
-
-
-
+	cli()
