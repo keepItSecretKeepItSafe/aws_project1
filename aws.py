@@ -1,4 +1,5 @@
 import click
+import botocore
 import boto3
 
 session = boto3.Session(profile_name='drake')
@@ -53,7 +54,11 @@ def stop_instances(project):
 	instances = filter_instances(project)
 	for i in instances:
 		print("Stopping {0}...".format(i.id))
-		i.stop()
+		try:
+			i.stop()
+		except botocore.exceptions.Clienterror as e:
+			print("Could not stop {0}".format(i.id) + str(e))
+			continue
 	return
 
 
@@ -64,18 +69,29 @@ def start_instances(project):
 	instances = filter_instances(project)
 	for i in instances:
 		print("Starting {0}...".format(i.id))
-		i.start()
+		try:
+			i.start()
+		except botocore.exceptions.Clienterror as e:
+			print("Could not start {0}".format(i.id) + str(e))
+			continue
 	return
 
 @instances.command('snapshot', help="Create snapshots of all volumes")
-@click.option@click.option('--project', default=None, help="Only volumes for project (tag Project:<name>)")
+@click.option('--project', default=None, help="Only volumes for project (tag Project:<name>)")
 def create_snapshots(project):
 	"Create snapshots for EC2 instances"
 	instances = filter_instances(project)
 	for i in instances:
+		print("Stopping {0}...".format(i.id))
+		i.stop()
+		i.wait_until_stopped()
 		for v in i.volumes.all():
-			print("Creating snapshot of [0]".format(v.id))
+			print("Creating snapshot of {0}".format(v.id))
 			v.create_snapshot(Description="Created from CLI")
+		print("Starting {0}...".format(i.id))
+		i.start()
+		i.wait_until_running()
+	print("Job completed")
 	return
 
 @volumes.command('list')
@@ -95,7 +111,8 @@ def list_volumes(project):
 
 @snapshots.command('list')
 @click.option('--project', default=None, help="Only snapshots for prohect (tag Project:<name>)")
-def list_snapshots(project):
+@click.option('--all', 'list_all', default=False, is_flat=True, help="list all snapshots for each volume on record")
+def list_snapshots(project, list_all):
 	"List EC2 snapshots"
 	instances = filter_instances(project)
 	for i in instances:
@@ -109,6 +126,7 @@ def list_snapshots(project):
 					"state: " + s.state + "\n" +
 					"created: " + s.start_time.strftime("%c"),
 					"\n")))
+				if s.state == "completed" and not list_all: break
 	return
 
 if __name__ == '__main__':
